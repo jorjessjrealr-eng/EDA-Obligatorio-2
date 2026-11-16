@@ -5,9 +5,9 @@
 
 typedef struct abb Abb;
 
-Abb *plantarABB(void);
-void talarABB(Abb *arbol);
-bool injertarPaquete(Abb *arbol, const Paquete *paquete);
+Abb *crearABB(void);
+void destruirABB(Abb *arbol);
+bool insertarPaquete(Abb *arbol, const Paquete *paquete);
 bool buscarPorID(const Abb *arbol, const char *trackingID, Paquete *salida);
 void recorrerEnOrden(const Abb *arbol);
 

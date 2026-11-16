@@ -7,7 +7,7 @@ void verificar(bool condicion, const char *nombre) {
 }
 
 int main(void) {
-  Abb *arbol = plantarABB();
+  Abb *arbol = crearABB();
   Paquete paqueteM = {"M200", "Salto", 2.0f, 50.0f};
   Paquete paqueteC = {"C100", "Paysandu", 3.0f, 80.0f};
   Paquete paqueteT = {"T300", "Rivera", 5.0f, 120.0f};
@@ -18,11 +18,11 @@ int main(void) {
   verificar(!buscarPorID(arbol, "M200", &salida),
             "buscar en vacio devuelve false");
 
-  verificar(injertarPaquete(arbol, &paqueteM), "injertar M200");
-  injertarPaquete(arbol, &paqueteC);
-  injertarPaquete(arbol, &paqueteT);
-  injertarPaquete(arbol, &paqueteA);
-  verificar(!injertarPaquete(arbol, &paqueteM), "duplicado devuelve false");
+  verificar(insertarPaquete(arbol, &paqueteM), "insertar M200");
+  insertarPaquete(arbol, &paqueteC);
+  insertarPaquete(arbol, &paqueteT);
+  insertarPaquete(arbol, &paqueteA);
+  verificar(!insertarPaquete(arbol, &paqueteM), "duplicado devuelve false");
 
   verificar(buscarPorID(arbol, "T300", &salida) &&
                 strcmp(salida.destino, "Rivera") == 0,
@@ -57,6 +57,6 @@ int main(void) {
   printf("\nInventario en orden:\n");
   recorrerEnOrden(arbol);
 
-  talarABB(arbol);
+  destruirABB(arbol);
   return 0;
 }
