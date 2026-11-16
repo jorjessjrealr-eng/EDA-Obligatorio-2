@@ -14,6 +14,9 @@ endif
 PRUEBAS = test_pila$(EXT) test_monton$(EXT) test_abb$(EXT) test_avl$(EXT)
 HEADERS = $(wildcard include/*.h)
 
+PROGRAMA = logiexpress$(EXT)
+FUENTES = src/main.c src/pila.c src/monton.c src/abb.c src/avl.c
+
 test: $(PRUEBAS)
 	$(PREFIJO)test_pila$(EXT)
 	$(PREFIJO)test_monton$(EXT)
@@ -38,7 +41,13 @@ test_abb$(EXT): tests/test_abb.c src/abb.c $(HEADERS)
 test_avl$(EXT): tests/test_avl.c src/avl.c $(HEADERS)
 	$(CC) $(CFLAGS) $(filter %.c,$^) -o $@
 
-clean:
-	-$(BORRAR) $(PRUEBAS)
+$(PROGRAMA): $(FUENTES) $(HEADERS)
+	$(CC) $(CFLAGS) $(FUENTES) -o $@ -lncurses
 
-.PHONY: test valgrind clean
+run: $(PROGRAMA)
+	$(PREFIJO)$(PROGRAMA)
+
+clean:
+	-$(BORRAR) $(PRUEBAS) $(PROGRAMA)
+
+.PHONY: test valgrind run clean
