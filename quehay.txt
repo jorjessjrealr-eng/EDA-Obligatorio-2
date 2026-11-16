@@ -1,0 +1,589 @@
+#include "abb.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct nodo {
+  Paquete dato;
+  struct nodo *izquierda;
+  struct nodo *derecha;
+} Nodo;
+
+struct abb {
+  Nodo *raiz;
+};
+
+Abb *plantarABB(void) {
+  Abb *arbol = malloc(sizeof(Abb));
+  if (arbol != NULL) {
+    arbol->raiz = NULL;
+  }
+  return arbol;
+}
+
+static void podarNodos(Nodo *nodo) {
+  if (nodo != NULL) {
+    podarNodos(nodo->izquierda);
+    podarNodos(nodo->derecha);
+    free(nodo);
+  }
+}
+
+void talarABB(Abb *arbol) {
+  if (arbol != NULL) {
+    podarNodos(arbol->raiz);
+    free(arbol);
+  }
+}
+
+static Nodo *crearNodo(const Paquete *paquete) {
+  Nodo *nodo = malloc(sizeof(Nodo));
+  if (nodo != NULL) {
+    nodo->dato = *paquete;
+    nodo->izquierda = NULL;
+    nodo->derecha = NULL;
+  }
+  return nodo;
+}
+
+static Nodo *injertarNodo(Nodo *nodo, const Paquete *paquete,
+                          bool *yaInsertado) {
+  if (nodo == NULL) {
+    Nodo *nuevo = crearNodo(paquete);
+    *yaInsertado = (nuevo != NULL);
+    return nuevo;
+  }
+  int comparacion = strcmp(paquete->trackingID, nodo->dato.trackingID);
+  if (comparacion < 0) {
+    nodo->izquierda = injertarNodo(nodo->izquierda, paquete, yaInsertado);
+  } else if (comparacion > 0) {
+    nodo->derecha = injertarNodo(nodo->derecha, paquete, yaInsertado);
+  } else {
+    *yaInsertado = false;
+  }
+  return nodo;
+}
+
+bool injertarPaquete(Abb *arbol, const Paquete *paquete) {
+  if (arbol == NULL || paquete == NULL)
+    return false;
+  bool yaInsertado = false;
+  arbol->raiz = injertarNodo(arbol->raiz, paquete, &yaInsertado);
+  return yaInsertado;
+}
+
+static const Nodo *buscarNodo(const Nodo *nodo, const char *trackingID) {
+  if (nodo == NULL)
+    return NULL;
+  int comparacion = strcmp(trackingID, nodo->dato.trackingID);
+  if (comparacion == 0)
+    return nodo;
+  if (comparacion < 0)
+    return buscarNodo(nodo->izquierda, trackingID);
+  return buscarNodo(nodo->derecha, trackingID);
+}
+
+bool buscarPorID(const Abb *arbol, const char *trackingID, Paquete *salida) {
+  if (arbol == NULL || trackingID == NULL || salida == NULL)
+    return false;
+  const Nodo *nodo = buscarNodo(arbol->raiz, trackingID);
+  if (nodo == NULL)
+    return false;
+  *salida = nodo->dato;
+  return true;
+}
+
+static void enOrden(const Nodo *nodo) {
+  if (nodo != NULL) {
+    enOrden(nodo->izquierda);
+    printf("%s | %s | %.2f kg | $%.2f\n", nodo->dato.trackingID,
+           nodo->dato.destino, nodo->dato.peso, nodo->dato.costoEnvio);
+    enOrden(nodo->derecha);
+  }
+}
+
+void recorrerEnOrden(const Abb *arbol) {
+  if (arbol != NULL) {
+    enOrden(arbol->raiz);
+  }
+}
+
+static int profundidad(const Nodo *nodo) {
+  if (nodo == NULL)
+    return 0;
+  int profundidadIzquierda = profundidad(nodo->izquierda);
+  int profundidadDerecha = profundidad(nodo->derecha);
+  if (profundidadIzquierda > profundidadDerecha) {
+    return 1 + profundidadIzquierda;
+  }
+  return 1 + profundidadDerecha;
+}
+
+int profundidadABB(const Abb *arbol) {
+  if (arbol == NULL)
+    return 0;
+  return profundidad(arbol->raiz);
+}
+
+static float pesoTotal(const Nodo *nodo) {
+  if (nodo == NULL)
+    return 0;
+  return nodo->dato.peso + pesoTotal(nodo->izquierda) +
+         pesoTotal(nodo->derecha);
+}
+
+float pesoTotalABB(const Abb *arbol) {
+  if (arbol == NULL)
+    return 0;
+  return pesoTotal(arbol->raiz);
+}
+
+static const Nodo *buscarCosto(const Nodo *nodo, float costoMin) {
+  if (nodo == NULL)
+    return NULL;
+  const Nodo *resultadoIzquierda = buscarCosto(nodo->izquierda, costoMin);
+  if (resultadoIzquierda != NULL)
+    return resultadoIzquierda;
+  if (nodo->dato.costoEnvio >= costoMin)
+    return nodo;
+  return buscarCosto(nodo->derecha, costoMin);
+}
+
+bool buscarPorCosto(const Abb *arbol, float costoMin, Paquete *salida) {
+  if (arbol == NULL || salida == NULL)
+    return false;
+  const Nodo *nodo = buscarCosto(arbol->raiz, costoMin);
+  if (nodo == NULL)
+    return false;
+  *salida = nodo->dato;
+  return true;
+}
+#include "monton.h"
+#include <stdlib.h>
+
+struct monton {
+  Envio *datos;
+  int tamano;
+  int capacidad;
+};
+
+Monton *crearMonton(int capacidad) {
+  if (capacidad <= 0) {
+    capacidad = 10;
+  }
+  Monton *monton = malloc(sizeof(Monton));
+  if (monton == NULL)
+    return NULL;
+  monton->datos = malloc(capacidad * sizeof(Envio));
+  if (monton->datos == NULL) {
+    free(monton);
+    return NULL;
+  }
+  monton->tamano = 0;
+  monton->capacidad = capacidad;
+  return monton;
+}
+
+void destruirMonton(Monton *monton) {
+  if (monton != NULL) {
+    free(monton->datos);
+    free(monton);
+  }
+}
+
+bool montonVacio(const Monton *monton) {
+  return monton == NULL || monton->tamano == 0;
+}
+
+static void intercambiar(Envio *primero, Envio *segundo) {
+  Envio auxiliar = *primero;
+  *primero = *segundo;
+  *segundo = auxiliar;
+}
+
+static void subir(Monton *monton, int indice) {
+  while (indice > 0 && monton->datos[indice].nivelUrgencia >
+                           monton->datos[(indice - 1) / 2].nivelUrgencia) {
+    int padre = (indice - 1) / 2;
+    intercambiar(&monton->datos[indice], &monton->datos[padre]);
+    indice = padre;
+  }
+}
+
+static void bajar(Monton *monton, int indice) {
+  bool seguir = true;
+  while (seguir) {
+    int izquierda = 2 * indice + 1;
+    int derecha = 2 * indice + 2;
+    int mayor = indice;
+    if (izquierda < monton->tamano && monton->datos[izquierda].nivelUrgencia >
+                                          monton->datos[mayor].nivelUrgencia) {
+      mayor = izquierda;
+    }
+    if (derecha < monton->tamano && monton->datos[derecha].nivelUrgencia >
+                                        monton->datos[mayor].nivelUrgencia) {
+      mayor = derecha;
+    }
+    if (mayor != indice) {
+      intercambiar(&monton->datos[indice], &monton->datos[mayor]);
+      indice = mayor;
+    } else {
+      seguir = false;
+    }
+  }
+}
+
+bool insertarEnvio(Monton *monton, const Envio *envio) {
+  if (monton == NULL || envio == NULL)
+    return false;
+  if (monton->tamano == monton->capacidad) {
+    Envio *nuevo =
+        realloc(monton->datos, monton->capacidad * 2 * sizeof(Envio));
+    if (nuevo == NULL)
+      return false;
+    monton->datos = nuevo;
+    monton->capacidad *= 2;
+  }
+  monton->datos[monton->tamano] = *envio;
+  subir(monton, monton->tamano);
+  monton->tamano++;
+  return true;
+}
+
+bool consultarMaxUrgencia(const Monton *monton, Envio *salida) {
+  if (montonVacio(monton) || salida == NULL)
+    return false;
+  *salida = monton->datos[0];
+  return true;
+}
+
+bool extraerMaximo(Monton *monton, Envio *salida) {
+  if (montonVacio(monton))
+    return false;
+  if (salida != NULL) {
+    *salida = monton->datos[0];
+  }
+  monton->tamano--;
+  monton->datos[0] = monton->datos[monton->tamano];
+  bajar(monton, 0);
+  return true;
+}
+#include "pila.h"
+#include <stdlib.h>
+
+typedef struct nodo {
+  Operacion dato;
+  struct nodo *siguiente;
+} Nodo;
+
+struct pila {
+  Nodo *cima;
+};
+
+Pila *crearPila(void) {
+  Pila *pila = malloc(sizeof(Pila));
+  if (pila != NULL) {
+    pila->cima = NULL;
+  }
+  return pila;
+}
+
+bool pilaVacia(const Pila *pila) { return pila == NULL || pila->cima == NULL; }
+
+bool apilar(Pila *pila, const Operacion *operacion) {
+  if (pila == NULL || operacion == NULL)
+    return false;
+  Nodo *nuevo = malloc(sizeof(Nodo));
+  if (nuevo == NULL)
+    return false;
+  nuevo->dato = *operacion;
+  nuevo->siguiente = pila->cima;
+  pila->cima = nuevo;
+  return true;
+}
+
+bool desapilar(Pila *pila, Operacion *salida) {
+  if (pilaVacia(pila))
+    return false;
+  Nodo *borrar = pila->cima;
+  if (salida != NULL) {
+    *salida = borrar->dato;
+  }
+  pila->cima = borrar->siguiente;
+  free(borrar);
+  return true;
+}
+
+bool consultarCima(const Pila *pila, Operacion *cima) {
+  if (pilaVacia(pila) || cima == NULL)
+    return false;
+  *cima = pila->cima->dato;
+  return true;
+}
+
+void destruirPila(Pila *pila) {
+  if (pila != NULL) {
+    while (!pilaVacia(pila)) {
+      desapilar(pila, NULL);
+    }
+    free(pila);
+  }
+}
+#ifndef TIPOS_H
+#define TIPOS_H
+
+#include <stdbool.h>
+
+#define MAX_RUTA 200
+#define MAX_CADENA 200
+
+typedef struct {
+  char ruta[MAX_RUTA];
+  char operacionRealizada[MAX_CADENA];
+} Operacion;
+
+typedef struct {
+  int idEnvio;
+  int nivelUrgencia;
+  int tiempoLimite;
+} Envio;
+
+typedef struct {
+  char trackingID[MAX_CADENA];
+  char destino[MAX_CADENA];
+  float peso;
+  float costoEnvio;
+} Paquete;
+
+typedef struct {
+  int idEstacion;
+  char nombre[MAX_CADENA];
+  float costoTransporte;
+} Estacion;
+
+#endif
+#ifndef ABB_H
+#define ABB_H
+
+#include "tipos.h"
+
+typedef struct abb Abb;
+
+Abb *plantarABB(void);
+void talarABB(Abb *arbol);
+bool injertarPaquete(Abb *arbol, const Paquete *paquete);
+bool buscarPorID(const Abb *arbol, const char *trackingID, Paquete *salida);
+void recorrerEnOrden(const Abb *arbol);
+
+int profundidadABB(const Abb *arbol);
+float pesoTotalABB(const Abb *arbol);
+bool buscarPorCosto(const Abb *arbol, float costoMin, Paquete *salida);
+
+#endif
+#ifndef AVL_H
+#define AVL_H
+
+#include "tipos.h"
+
+typedef struct avl Avl;
+
+Avl *plantarAVL(void);
+void talarAVL(Avl *arbol);
+bool injertarEstacion(Avl *arbol, const Estacion *estacion);
+bool podarEstacion(Avl *arbol, int idEstacion);
+bool buscarEstacion(const Avl *arbol, int idEstacion, Estacion *salida);
+
+#endif
+#ifndef PILA_H
+#define PILA_H
+
+#include "tipos.h"
+
+typedef struct pila Pila;
+
+Pila *crearPila(void);
+void destruirPila(Pila *pila);
+bool apilar(Pila *pila, const Operacion *operacion);
+bool desapilar(Pila *pila, Operacion *salida);
+bool consultarCima(const Pila *pila, Operacion *cima);
+bool pilaVacia(const Pila *pila);
+
+#endif
+#ifndef MONTON_H
+#define MONTON_H
+
+#include "tipos.h"
+
+typedef struct monton Monton;
+
+Monton *crearMonton(int capacidad);
+void destruirMonton(Monton *monton);
+bool insertarEnvio(Monton *monton, const Envio *envio);
+bool consultarMaxUrgencia(const Monton *monton, Envio *salida);
+bool extraerMaximo(Monton *monton, Envio *salida);
+bool montonVacio(const Monton *monton);
+
+#endif
+#include "pila.h"
+#include <stdio.h>
+#include <string.h>
+
+void verificar(bool condicion, const char *nombre) {
+  printf("%s %s\n", condicion ? "[OK]   " : "[FALLO]", nombre);
+}
+
+int main(void) {
+  Pila *p = crearPila();
+  Operacion a = {"A->B", "cambio de ruta"};
+  Operacion b = {"C->D", "reasignacion"};
+  Operacion salida;
+
+  verificar(pilaVacia(p), "pila nueva esta vacia");
+  verificar(!desapilar(p, &salida), "desapilar vacia devuelve false");
+
+  apilar(p, &a);
+  apilar(p, &b);
+  verificar(!pilaVacia(p), "despues de apilar no esta vacia");
+
+  consultarCima(p, &salida);
+  verificar(strcmp(salida.ruta, "C->D") == 0, "la cima es el ultimo apilado");
+
+  desapilar(p, &salida);
+  verificar(strcmp(salida.ruta, "C->D") == 0,
+            "desapila devuelve el ultimo (LIFO)");
+
+  desapilar(p, &salida);
+  verificar(strcmp(salida.ruta, "A->B") == 0, "luego devuelve el primero");
+  verificar(pilaVacia(p), "queda vacia");
+
+  destruirPila(p);
+  return 0;
+}
+#include "abb.h"
+#include <stdio.h>
+#include <string.h>
+
+void verificar(bool condicion, const char *nombre) {
+  printf("%s %s\n", condicion ? "[OK]   " : "[FALLO]", nombre);
+}
+
+int main(void) {
+  Abb *arbol = plantarABB();
+  Paquete paqueteM = {"M200", "Salto", 2.0f, 50.0f};
+  Paquete paqueteC = {"C100", "Paysandu", 3.0f, 80.0f};
+  Paquete paqueteT = {"T300", "Rivera", 5.0f, 120.0f};
+  Paquete paqueteA = {"A050", "Colonia", 1.0f, 30.0f};
+  Paquete salida;
+
+  verificar(profundidadABB(arbol) == 0, "arbol vacio tiene profundidad 0");
+  verificar(!buscarPorID(arbol, "M200", &salida),
+            "buscar en vacio devuelve false");
+
+  verificar(injertarPaquete(arbol, &paqueteM), "injertar M200");
+  injertarPaquete(arbol, &paqueteC);
+  injertarPaquete(arbol, &paqueteT);
+  injertarPaquete(arbol, &paqueteA);
+  verificar(!injertarPaquete(arbol, &paqueteM), "duplicado devuelve false");
+
+  verificar(buscarPorID(arbol, "T300", &salida) &&
+                strcmp(salida.destino, "Rivera") == 0,
+            "encuentra T300");
+  verificar(!buscarPorID(arbol, "Z999", &salida),
+            "no encuentra ID inexistente");
+
+  verificar(profundidadABB(arbol) == 3, "profundidad es 3");
+  verificar(pesoTotalABB(arbol) == 11.0f, "peso total es 11");
+
+  verificar(buscarPorCosto(arbol, 100.0f, &salida) &&
+                strcmp(salida.trackingID, "T300") == 0,
+            "primer paquete con costo >= 100 es T300");
+  verificar(!buscarPorCosto(arbol, 500.0f, &salida), "nadie con costo >= 500");
+
+  printf("\nInventario en orden:\n");
+  recorrerEnOrden(arbol);
+
+  talarABB(arbol);
+  return 0;
+}
+#include "monton.h"
+#include <stdio.h>
+
+void verificar(bool condicion, const char *nombre) {
+  printf("%s %s\n", condicion ? "[OK]   " : "[FALLO]", nombre);
+}
+
+int main(void) {
+  Monton *m = crearMonton(2);
+  Envio e1 = {1, 5, 100};
+  Envio e2 = {2, 9, 200};
+  Envio e3 = {3, 7, 300};
+  Envio e4 = {4, 1, 400};
+  Envio salida;
+
+  verificar(montonVacio(m), "monton nuevo esta vacio");
+  verificar(!extraerMaximo(m, &salida), "extraer de vacio devuelve false");
+
+  insertarEnvio(m, &e1);
+  insertarEnvio(m, &e2);
+  insertarEnvio(m, &e3);
+  insertarEnvio(m, &e4);
+  verificar(!montonVacio(m), "despues de insertar no esta vacio");
+
+  consultarMaxUrgencia(m, &salida);
+  verificar(salida.idEnvio == 2, "el mas urgente es el de nivel 9");
+
+  extraerMaximo(m, &salida);
+  verificar(salida.idEnvio == 2, "extrae primero el nivel 9");
+  extraerMaximo(m, &salida);
+  verificar(salida.idEnvio == 3, "luego el nivel 7");
+  extraerMaximo(m, &salida);
+  verificar(salida.idEnvio == 1, "luego el nivel 5");
+  extraerMaximo(m, &salida);
+  verificar(salida.idEnvio == 4, "luego el nivel 1");
+  verificar(montonVacio(m), "queda vacio");
+
+  destruirMonton(m);
+  return 0;
+}
+-std=c99
+-Iinclude
+ELF          >          @       °8          @ 8  @         @       @       @       H      H                   ¬      ¬      ¬                                                                                                       !      !                                           ø      ø                   Ğ-      Ğ=      Ğ=      p      x                   à-      à=      à=      à      à                   ˆ      ˆ      ˆ      $       $                    ˜&      ˜&      ˜&      @       @                    Ø&      Ø&      Ø&                             Såtd   ˜&      ˜&      ˜&      @       @              Påtd   P$      P$      P$      \       \              Tåtd   &      &      &      ˆ       ˆ              Qåtd                                                  Råtd   Ğ-      Ğ=      Ğ=      0      0                      GNU pU ¥ïrˆçõàtzM»æ/lib64/ld-linux-x86-64.so.2                                                                                                  Š                                             ?                      M                      ¦                       F                                            µ                       0   "                    __stack_chk_fail free malloc __libc_start_main __cxa_finalize printf memcpy strcmp libc.so.6 GLIBC_2.14 GLIBC_2.4 GLIBC_2.34 GLIBC_2.2.5 _ITM_deregisterTMCloneTable __gmon_start__ _ITM_registerTMCloneTable                    T          ”‘–   ^      ii   i      ´‘–   s      ui	   ~       Ğ=             €      Ø=             0      8@             8@      À?                    È?                    Ğ?                    Ø?         
+           à?                     @                    @                    @                    @                     @                    (@         	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           óúHƒìH‹Á/  H…ÀtÿĞHƒÄÃ     ÿ5Ê/  ÿ%Ì/  @ ÿ%Ê/  h    éàÿÿÿÿ%Â/  h   éĞÿÿÿÿ%º/  h   éÀÿÿÿÿ%²/  h   é°ÿÿÿÿ%ª/  h   é ÿÿÿÿ%¢/  h   éÿÿÿóú1íI‰Ñ^H‰âHƒäğPTE1À1ÉH=  ÿ/  ôf.„     H=y/  Hr/  H9øtH‹î.  H…Àt	ÿà€    Ã€    H=I/  H5B/  H)şH‰ğHÁî?HÁøHÆHÑştH‹½.  H…ÀtÿàfD  Ã€    óú€=/   u3UHƒ=š.   H‰åtH‹=æ.  ÿˆ.  ècÿÿÿÆÜ.  ]Ãf.„     Ã@ ff.„     óúégÿÿÿUH‰åHƒì@ˆ}ÿH‰uğ€}ÿ t	Hz  ëHy  H‹UğHv  H‰ÆH‰Ï¸    è†şÿÿÉÃUH‰åHìĞ  dH‹%(   H‰Eø1Àè8  H‰…8ûÿÿH…@ûÿÿH  º  H‰ÎH‰Çè_şÿÿH…ĞüÿÿH¡  º  H‰ÎH‰ÇèAşÿÿH‹…8ûÿÿH‰Çè  Hò  ¶ÀH‰Ö‰Çè7ÿÿÿH•`şÿÿH‹…8ûÿÿH‰ÖH‰Çè“  ¶À…À•Àƒğ¶ÀƒàHÍ  ¶ÀH‰Ö‰ÇèùşÿÿH•@ûÿÿH‹…8ûÿÿH‰ÖH‰ÇèÕ  H•ĞüÿÿH‹…8ûÿÿH‰ÖH‰Çè¼  H‹…8ûÿÿH‰Çè  ¶À…À•Àƒğ¶ÀƒàH‡  ¶ÀH‰Ö‰Çè“şÿÿH•`şÿÿH‹…8ûÿÿH‰ÖH‰Çèh  Hz  H…`şÿÿH‰ÖH‰Çè8ıÿÿ…À”ÀHa  ¶ÀH‰Ö‰ÇèHşÿÿH•`şÿÿH‹…8ûÿÿH‰ÖH‰Çè¤  H/  H…`şÿÿH‰ÖH‰Çèíüÿÿ…À”ÀH9  ¶ÀH‰Ö‰ÇèııÿÿH•`şÿÿH‹…8ûÿÿH‰ÖH‰ÇèY  H/  H…`şÿÿH‰ÖH‰Çè¢üÿÿ…À”ÀH  ¶ÀH‰Ö‰Çè²ıÿÿH‹…8ûÿÿH‰Çèl   H  ¶ÀH‰Ö‰ÇèıÿÿH‹…8ûÿÿH‰ÇèÁ  ¸    H‹UødH+%(   tèüÿÿÉÃUH‰åHƒì¿   èJüÿÿH‰EøHƒ}ø tH‹EøHÇ     H‹EøÉÃUH‰åH‰}øHƒ}ø tH‹EøH‹ H…Àu¸   ë¸    ƒà]ÃUH‰åHƒì H‰}èH‰uàHƒ}è tHƒ}à u¸    ëY¿˜  èÓûÿÿH‰EøHƒ}ø u¸    ë=H‹UøH‹EàH‰Ñº  H‰ÆH‰Ïè–ûÿÿH‹EèH‹H‹EøH‰  H‹EèH‹UøH‰¸   ÉÃUH‰åHƒì H‰}èH‰uàH‹EèH‰Çè8ÿÿÿ„Àt¸    ëPH‹EèH‹ H‰EøHƒ}à tH‹UàH‹EøH‰Ñº  H‰ÆH‰ÏèûÿÿH‹EøH‹  H‹EèH‰H‹EøH‰ÇèÀúÿÿ¸   ÉÃUH‰åHƒìH‰}øH‰uğH‹EøH‰Çè¿şÿÿ„ÀuHƒ}ğ u¸    ë#H‹EøH‹ H‹UğH‰Ñº  H‰ÆH‰Ïè­úÿÿ¸   ÉÃUH‰åHƒìH‰}øHƒ}ø t4ëH‹Eø¾    H‰ÇèÿÿÿH‹EøH‰ÇèVşÿÿƒğ„ÀuÜH‹EøH‰Çè!úÿÿëÉÃóúHƒìHƒÄÃ                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             [OK]    [FALLO] %s %s
+ pila nueva esta vacia    desapilar vacia devuelve false  despues de apilar no esta vacia C->D la cima es el ultimo apilado       desapila devuelve el ultimo (LIFO) A->B luego devuelve el primero queda vacia                           A->B                                                                                                                                                                                                    cambio de ruta                                                                                                                                                                                                          C->D                                                                                                                                                                                                    reasignacion                                                                                                                                                                                            ;\   
+   Ğëÿÿ   @ìÿÿx   9íÿÿ¸   }íÿÿØ   Ôïÿÿø   ğÿÿ  .ğÿÿ8  ®ğÿÿX  'ñÿÿx  zñÿÿ˜             zR x        Àëÿÿ&    D    $   4   8ëÿÿp    FJw€ ?;*3$"       \   yìÿÿD    A†C      |   ìÿÿW   A†CR    œ   Ôîÿÿ.    A†Ci      ¼   âîÿÿ,    A†Cg      Ü   îîÿÿ€    A†C{     ü   Nïÿÿy    A†Ct       §ïÿÿS    A†CN     <  ÚïÿÿJ    A†CE          âŞ ø               0   ôéÿÿÿÿÿÿ   
+   ôéÿÿÿÿÿÿ`      Dêÿÿÿÿÿÿ&                                     0      GNU € À           À           À                   GNU                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       €      0             T                                         Ğ=                           Ø=                    õşÿo    È                          è      
+       Ï                                           è?                                                       @             À       	              ûÿÿo           şÿÿo    ğ      ÿÿÿo           ğÿÿo    Ø      ùÿÿo                                                                                                                                   à=                      6      F      V      f      v      †              8@      GCC: (GNU) 16.2.1 20260810                                  ñÿ                	     Ø&                  ñÿ                     À              !     ğ              4     0              J     @@             V     Ø=              }     €              ‰     Ğ=              ¨    ñÿ                ­    ñÿ                ´    ñÿ                ¾     &                   ñÿ                Ì     à=              Õ      P$              è     è?              ş                                           ,                      ¾     0@              H    ‰      D       R    Ê      J       _    @@              f                 l                     ‡                     š    ş      y       ¤    $      .       ®    w      S       ¼    0@              É                     Ü                      ë   8@              ø                     
+                       R      ,       #                     6    H@              Â          &       ;    @@              G    Í      W      L   @@              X                      r  "                     
+                    ~      €        Scrt1.o __abi_tag crtbeginS.o deregister_tm_clones __do_global_dtors_aux completed.0 __do_global_dtors_aux_fini_array_entry frame_dummy __frame_dummy_init_array_entry test_pila.c crtendS.o __FRAME_END__ _DYNAMIC __GNU_EH_FRAME_HDR _GLOBAL_OFFSET_TABLE_ free@GLIBC_2.2.5 __libc_start_main@GLIBC_2.34 _ITM_deregisterTMCloneTable verificar destruirPila _edata _fini __stack_chk_fail@GLIBC_2.4 printf@GLIBC_2.2.5 desapilar crearPila consultarCima __data_start strcmp@GLIBC_2.2.5 __gmon_start__ __dso_handle memcpy@GLIBC_2.14 _IO_stdin_used pilaVacia malloc@GLIBC_2.2.5 _end __bss_start main __TMC_END__ _ITM_registerTMCloneTable __cxa_finalize@GLIBC_2.2.5 _init  .symtab .strtab .shstrtab .note.gnu.build-id .interp .gnu.hash .dynsym .dynstr .gnu.version .gnu.version_r .rela.dyn .rela.plt .init .text .fini .rodata .eh_frame_hdr .eh_frame .sframe .note.gnu.property .note.ABI-tag .init_array .fini_array .dynamic .got .got.plt .data .bss .comment                                                                                     ˆ      ˆ      $                              .             ¬      ¬                                    6   öÿÿo       È      È                                   @             è      è                                 H                         Ï                              P   ÿÿÿo       Ø      Ø                                  ]   şÿÿo       ğ      ğ      P                            l             @      @      À                            v      B                                                €                                                         {                           p                             †                         „                             Œ                                                       ’                             P                              š             P$      P$      \                              ¨             °$      °$      \                             ²   ôÿÿo       &      &      l                              º             ˜&      ˜&      @                              Í             Ø&      Ø&                                     Û             Ğ=      Ğ-                                   ç             Ø=      Ø-                                   ó             à=      à-      à                           ü             À?      À/      (                                         è?      è/      H                             
+            0@      00                                                @@      @0                                         0               @0                                                         `0      ˜                          	                      ø4      “                                                   ‹7                                   ELF          >    €      @       H          @ 8  @ & %       @       @       @       H      H                   ¬      ¬      ¬                                                         @      @                                        a	      a	                                                                    Ğ-      Ğ=      Ğ=      h      p                   à-      à=      à=      à      à                   ˆ      ˆ      ˆ      $       $                    ¸#      ¸#      ¸#      @       @                    ø#      ø#      ø#                             Såtd   ¸#      ¸#      ¸#      @       @              Påtd   ü       ü       ü       t       t              Tåtd   0#      0#      0#      ˆ       ˆ              Qåtd                                                  Råtd   Ğ-      Ğ=      Ğ=      0      0                      GNU ™_í­C›b=—«Äñá ˜ª»º/lib64/ld-linux-x86-64.so.2                                                                            &                      y                                             G                      •                                                                   ¤                       8   "                    __stack_chk_fail free realloc malloc __libc_start_main __cxa_finalize printf libc.so.6 GLIBC_2.4 GLIBC_2.34 GLIBC_2.2.5 _ITM_deregisterTMCloneTable __gmon_start__ _ITM_registerTMCloneTable                      N          ii   X      ´‘–   b      ui	   m       Ğ=             p      Ø=                    0@             0@      À?                    È?                    Ğ?                    Ø?         	           à?         
+            @                    @                    @                    @                     @                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    óúHƒìH‹Á/  H…ÀtÿĞHƒÄÃ     ÿ5Ê/  ÿ%Ì/  @ ÿ%Ê/  h    éàÿÿÿÿ%Â/  h   éĞÿÿÿÿ%º/  h   éÀÿÿÿÿ%²/  h   é°ÿÿÿÿ%ª/  h   é ÿÿÿóú1íI‰Ñ^H‰âHƒäğPTE1À1ÉH=  ÿ/  ôf.„     H=/  Hz/  H9øtH‹ş.  H…Àt	ÿà€    Ã€    H=Q/  H5J/  H)şH‰ğHÁî?HÁøHÆHÑştH‹Í.  H…ÀtÿàfD  Ã€    óú€=/   u3UHƒ=ª.   H‰åtH‹=î.  ÿ˜.  ècÿÿÿÆä.  ]Ãf.„     Ã@ ff.„     óúégÿÿÿUH‰åHƒì@ˆ}ÿH‰uğ€}ÿ t	Hr  ëHq  H‹UğHn  H‰ÆH‰Ï¸    è–şÿÿÉÃUH‰åHƒìPdH‹%(   H‰Eø1À¿   èd  H‰E°ÇE¼   ÇEÀ   ÇEÄd   ÇEÈ   ÇEÌ	   ÇEĞÈ   ÇEÔ   ÇEØ   ÇEÜ,  ÇEà   ÇEä   ÇEè  H‹E°H‰ÇèÆ  HÖ  ¶ÀH‰Ö‰Çè#ÿÿÿHUìH‹E°H‰ÖH‰ÇèH  ¶À…À•Àƒğ¶ÀƒàH·  ¶ÀH‰Ö‰ÇèëşÿÿHU¼H‹E°H‰ÖH‰ÇèÏ  HUÈH‹E°H‰ÖH‰Çè¼  HUÔH‹E°H‰ÖH‰Çè©  HUàH‹E°H‰ÖH‰Çè–  H‹E°H‰Çè"  ¶À…À•Àƒğ¶ÀƒàHZ  ¶ÀH‰Ö‰ÇènşÿÿHUìH‹E°H‰ÖH‰ÇèG  ‹Eìƒø”ÀHR  ¶ÀH‰Ö‰Çè>şÿÿHUìH‹E°H‰ÖH‰Çèc  ‹Eìƒø”ÀHB  ¶ÀH‰Ö‰ÇèşÿÿHUìH‹E°H‰ÖH‰Çè3  ‹Eìƒø”ÀH,  ¶ÀH‰Ö‰ÇèŞıÿÿHUìH‹E°H‰ÖH‰Çè  ‹Eìƒø”ÀH  ¶ÀH‰Ö‰Çè®ıÿÿHUìH‹E°H‰ÖH‰ÇèÓ  ‹Eìƒø”ÀHî  ¶ÀH‰Ö‰Çè~ıÿÿH‹E°H‰Çè  Hß  ¶ÀH‰Ö‰Çè^ıÿÿH‹E°H‰Çè®   ¸    H‹UødH+%(   tè üÿÿÉÃUH‰åHƒì ‰}ìƒ}ì ÇEì
+   ¿   èüûÿÿH‰EøHƒ}ø u¸    ë]‹EìHcĞH‰ĞHÀHĞHÁàH‰ÇèÏûÿÿH‰ÂH‹EøH‰H‹EøH‹ H…ÀuH‹EøH‰Çè}ûÿÿ¸    ëH‹EøÇ@    H‹Eø‹Uì‰PH‹EøÉÃUH‰åHƒìH‰}øHƒ}ø tH‹EøH‹ H‰Çè9ûÿÿH‹EøH‰Çè-ûÿÿëÉÃUH‰åH‰}øHƒ}ø tH‹Eø‹@…Àu¸   ë¸    ƒà]ÃUH‰åH‰}èH‰uàH‹EèH‹H‰Uô‹@‰EüH‹EèH‹UàH‹
+H‰‹R‰PH‹EàH‹UôH‰‹Uü‰P]ÃUH‰åHƒì H‰}è‰uäé¡   ‹Eäƒè‰ÂÁêĞÑø‰EüH‹EèH‹‹EäHcĞH‰ĞHÀHĞHÁàHÈ‹HH‹EèH‹0‹EüHcĞH‰ĞHÀHĞHÁàHğ‹@9Á~WH‹EèH‹‹EüHcĞH‰ĞHÀHĞHÁàHÁH‹EèH‹0‹EäHcĞH‰ĞHÀHĞHÁàHğH‰ÎH‰Çèÿÿÿ‹Eü‰Eäƒ}ä UÿÿÿëÉÃUH‰åHƒì H‰}è‰uä‹EäÀƒÀ‰Eø‹EäƒÀÀ‰Eü‹Eä‰EôH‹Eè‹@9Eø}JH‹EèH‹‹EøHcĞH‰ĞHÀHĞHÁàHÈ‹HH‹EèH‹0‹EôHcĞH‰ĞHÀHĞHÁàHğ‹@9Á~‹Eø‰EôH‹Eè‹@9Eü}JH‹EèH‹‹EüHcĞH‰ĞHÀHĞHÁàHÈ‹HH‹EèH‹0‹EôHcĞH‰ĞHÀHĞHÁàHğ‹@9Á~‹Eü‰Eô‹Eô;EätPH‹EèH‹‹EôHcĞH‰ĞHÀHĞHÁàHÁH‹EèH‹0‹EäHcĞH‰ĞHÀHĞHÁàHğH‰ÎH‰ÇèÒıÿÿ‹Eô‰EäéàşÿÿÉÃUH‰åHƒì H‰}èH‰uàHƒ}è tHƒ}à u
+¸    éË   H‹Eè‹PH‹Eè‹@9Âu\H‹Eè‹@ÀHcĞH‰ĞHÀHĞHÁàH‰ÂH‹EèH‹ H‰ÖH‰Çè˜øÿÿH‰EøHƒ}ø u¸    ëyH‹EèH‹UøH‰H‹Eè‹@ H‹Eè‰PH‹EèH‹H‹Eè‹@HcĞH‰ĞHÀHĞHÁàHH‹EàH‹H‰
+‹@‰BH‹Eè‹PH‹Eè‰ÖH‰Çè+ıÿÿH‹Eè‹@PH‹Eè‰P¸   ÉÃUH‰åHƒìH‰}øH‰uğH‹EøH‰Çè‡üÿÿ„ÀuHƒ}ğ u¸    ëH‹EøH‹H‹EğH‹
+H‰‹R‰P¸   ÉÃUH‰åHƒìH‰}øH‰uğH‹EøH‰Çè;üÿÿ„Àt¸    ëzHƒ}ğ tH‹EøH‹H‹EğH‹
+H‰‹R‰PH‹Eø‹@PÿH‹Eø‰PH‹EøH‹H‹Eø‹@HcĞH‰ĞHÀHĞHÁàHH‹EøH‹ H‹
+H‰‹R‰PH‹Eø¾    H‰Çèğüÿÿ¸   ÉÃóúHƒìHƒÄÃ                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     [OK]    [FALLO] %s %s
+ monton nuevo esta vacio  extraer de vacio devuelve false despues de insertar no esta vacio       el mas urgente es el de nivel 9 extrae primero el nivel 9 luego el nivel 7 luego el nivel 5 luego el nivel 1 queda vacio    ;p      $ïÿÿ¤   „ïÿÿŒ   }ğÿÿÌ   Áğÿÿì   Fóÿÿ  Ùóÿÿ,  ôÿÿL  7ôÿÿl  |ôÿÿŒ  Aõÿÿ¬  töÿÿÌ  i÷ÿÿì  µ÷ÿÿ         zR x        ğîÿÿ&    D    $   4   xîÿÿ`    FJw€ ?;*3$"       \   ©ïÿÿD    A†C      |   Íïÿÿ…   A†C€    œ   2òÿÿ“    A†C     ¼   ¥òÿÿ3    A†Cn      Ü   ¸òÿÿ+    A†Cf      ü   ÃòÿÿE    A†C@       èòÿÿÅ    A†CÀ     <  óÿÿ3   A†C.    \   ôÿÿõ    A†Cğ     |  uõÿÿL    A†CG     œ  ¡õÿÿ£    A†C          âŞ ø               0   Ôìÿÿÿÿÿÿ   
+   ÔìÿÿÿÿÿÿP      íÿÿÿÿÿÿ&                                     0      GNU € À           À           À                   GNU                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       p                    N                            T             Ğ=                           Ø=                    õşÿo    È             ğ             è      
+       ¾                                           è?             x                            È                          À       	              ûÿÿo           şÿÿo    È      ÿÿÿo           ğÿÿo    ®      ùÿÿo                                                                                                                                   à=                      6      F      V      f      v              0@      GCC: (GNU) 16.2.1 20260810 ,             y      É                      ,    8       B                            4       
+N          y      É          ü   º   5   	l   $  l    ,  l       l    int &  A   s      G   œ   ‹   Ò     ±   ¿   ³      ˆ  Ù   	İ   İ    ‹   #   ü   ü        è   —   s   î   
+ü   '  İ   '         ü   F  İ        ü   [     B   	İ   p  l    £   rl   ˆ  ˆ   <      l   ½      …      œ  m 	İ   ‘ e1 
+	s   ‘¬e2 	s   ‘¸e3 	s   ‘De4 	s   ‘Pª   	s   ‘\   y      D       œ	8   ü   ‘o	   ,ˆ  ‘`  ‘   1  N   ]      B              ü   º   	m   $  m    ,  m       m    int 
+&  <   t      
+G      Œ   Ò   Ò   k  
+à    :  m   S  m    ˆ  ƒ  t   ]  ¯ÿ   ÿ   ÿ   .    ~  ³  ÿ    —  ¤ÿ   )  .       \d  ±      £       œd  m \k  ‘hª   \&à   ‘` è   Œ   #   Ud  e      L       œ«  m U)«  ‘hª   U3à   ‘` ˜   î   Ed  p      õ       œ	  m Ek  ‘Xe E,	  ‘Pª      \       	G  Ià   ‘h  €   A  3=      3      œs  m 3k  ‘Xi 3"m   ‘T   izq 5	m   ‘hder 6	m   ‘l	e  7	m   ‘d  ‘  )x      Å       œ¼  m )k  ‘Xi )"m   ‘T   	M  +	m   ‘l  q  #3      E       œ  a #!à   ‘Xb #+à   ‘Paux $	t   ‘d   !d        +       œ0  m ! «  ‘h Ù   Õ      3       œ[  m k  ‘h B   
+	k  B      “       œS  
+m   ‘\m k  ‘h  $ >   I   !I  .?:!;9'I<  4 :!;9I  & I   :!;9!I8   :;9I  	 :!;!9I  
+%  :;9  $ >   <  .?:;9'<  .?:;9'I<     .?:;9'I@|  4 :;9I  .?:;9'@|    :!;9I  $ >   :;9I8   !I   I  4 :!;9I  .?:!;9!'I@|   :!;9I  	4 :!;9I  
+ :;9I  & I  .?:!;9!'I<  .:!;9!'@|  U  %  :;9  $ >  :;9     .?:;9'<    .:;9'@z  .?:;9'I@z  .?:;9'@|  .?:;9'I@|        E   û         1   <   7         D   L   U   4 	y      ó f  tŸ>‚å	×KKKM º= . <"//// º <"/<’/<‘/<‘/<‘/<‘ º>
+»Y Y    E   û         j   <   7   a   a   D   L   n   $ 	B      	­gu×uufÈ ¬utY»v­
+ŸK 0»	vtƒÔ##06‚: t6 t J t XI<.0	»=%>	åY	f
+»tX'<.t5X<"L)t.<t.× a¥*$%>æ	Xg	fYgt
+YtX(</t6X ;Lgt
+YtX(</t6X ;Lg"„)t.<t.×sfX$/>ó tuŸtt'K3t7Xòtåuu­t tóKt
+ŸY;0ó º Juut
+óY.0ó ºKuutótŸtt»
+Y tiempoLimite short int main nombre consultarMaxUrgencia condicion crearMonton GNU C99 16.2.1 20260810 -mtune=generic -march=x86-64 -g -std=c99 extraerMaximo float printf salida unsigned char short unsigned int monton destruirMonton _Bool insertarEnvio long unsigned int verificar montonVacio idEnvio nivelUrgencia tamano bajar nuevo padre capacidad realloc mayor datos intercambiar free long long int subir malloc tests/test_monton.c /home/jorjess/LogiExpress360 tests /usr/include tipos.h monton.h stdio.h src/monton.c src stdlib.h          Êë÷ø Š¥ª«                               ñÿ                	     ø#                  ñÿ                     °              !     à              4                    J     8@             V     Ø=              }     p              ‰     Ğ=              ¨    ñÿ                ­    ñÿ                ¶     3      E       Ã     x      Å       É     =      3      Ï    ñÿ                Ù     (#                   ñÿ                ç     à=              ğ      ü                   è?                                   *                     G                      Ò     (@              c    ±      £       q    y      D       {    8@              ‚   T              ˆ                     £                     ¶    p      õ       Ä    B      “       Ğ    (@              İ                      ì   0@              ù                                            @@              Ö    €      &                             4    8@              @    ½      …      E    Õ      3       T   8@              `                      z    e      L         "                   ª  
+                °          +        Scrt1.o __abi_tag crtbeginS.o deregister_tm_clones __do_global_dtors_aux completed.0 __do_global_dtors_aux_fini_array_entry frame_dummy __frame_dummy_init_array_entry test_monton.c intercambiar subir bajar crtendS.o __FRAME_END__ _DYNAMIC __GNU_EH_FRAME_HDR _GLOBAL_OFFSET_TABLE_ free@GLIBC_2.2.5 __libc_start_main@GLIBC_2.34 _ITM_deregisterTMCloneTable extraerMaximo verificar _edata _fini __stack_chk_fail@GLIBC_2.4 printf@GLIBC_2.2.5 insertarEnvio crearMonton __data_start __gmon_start__ __dso_handle _IO_stdin_used malloc@GLIBC_2.2.5 _end realloc@GLIBC_2.2.5 __bss_start main destruirMonton __TMC_END__ _ITM_registerTMCloneTable consultarMaxUrgencia __cxa_finalize@GLIBC_2.2.5 _init montonVacio  .symtab .strtab .shstrtab .note.gnu.build-id .interp .gnu.hash .dynsym .dynstr .gnu.version .gnu.version_r .rela.dyn .rela.plt .init .text .fini .rodata .eh_frame_hdr .eh_frame .sframe .note.gnu.property .note.ABI-tag .init_array .fini_array .dynamic .got .got.plt .data .bss .comment .debug_aranges .debug_info .debug_abbrev .debug_line .debug_str .debug_line_str .debug_rnglists                                                                                    ˆ      ˆ      $                              .             ¬      ¬                                    6   öÿÿo       È      È                                   @             è      è                                H             ğ      ğ      ¾                              P   ÿÿÿo       ®      ®                                  ]   şÿÿo       È      È      @                            l                         À                            v      B       È      È      x                           €                                                         {                           `                             †             €      €      Ô                             Œ             T      T                                    ’                             ù                              š             ü       ü       t                              ¨             p!      p!      ¼                             ²   ôÿÿo       0#      0#      l                              º             ¸#      ¸#      @                              Í             ø#      ø#                                     Û             Ğ=      Ğ-                                   ç             Ø=      Ø-                                   ó             à=      à-      à                           ü             À?      À/      (                                         è?      è/      @                             
+            (@      (0                                                8@      80                                         0               80                                                        S0      `                              -                     ³0      Í                             9                     €6      æ                             G                     f9      a                             S     0               Ç<                                  ^     0               e>      w                             n                     Ü>      "                                                     ?      È      $                    	                      ÈC      ¼                                                   „F      ~                             
